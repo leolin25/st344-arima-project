@@ -11,30 +11,4 @@ urlcolor: blue
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(jsonlite)
-
-# Create new manifest.json
-pkgs <- sessionInfo()$otherPkgs
-pkg_list <- list()
-
-for (pkg in names(pkgs)) {
-  pkg_list[[pkg]] <- list(
-    Source = "CRAN",
-    Repository = "https://cran.rstudio.com"
-  )
-}
-
-manifest <- list(
-  version = 1,
-  locale = "en_US",
-  platform = R.version$version.string,
-  metadata = list(
-    appmode = "shiny", # Options: "shiny", "api" (Plumber), "rmd", or "static"
-    entrypoint = "app.R"
-  ),
-  packages = pkg_list,
-  files = as.list(list.files(".", recursive = FALSE))
-)
-
-write_json(manifest, "manifest.json", auto_unbox = TRUE, pretty = TRUE)
 ```
