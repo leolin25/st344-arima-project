@@ -1,0 +1,14 @@
+---
+title: 'ST344 Team Report'
+author: 'Team ARIMA'
+fontsize: 11pt
+geometry: margin = 1in
+output:
+  pdf_document: default
+bibliography: References.bib
+urlcolor: blue
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
