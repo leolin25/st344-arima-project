@@ -12,3 +12,25 @@ urlcolor: blue
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+# Data Analysis for WCivic
+
+# Data:
+
+Data obtained from government website. The data will be preprocessed to only use contain data from the last 5 years (2025-2021). This data should be sufficient to view recent trends and patterns that occur
+
+```{r load_data}
+# road safety data
+road_casualty <- read.csv(file='casualty-last-5-years.csv')
+road_collisions <- read.csv(file='collision-last-5-years.csv')
+road_vehicles <- read.csv(file='vehicle-last-5-years.csv')
+
+# road traffic data
+raw_traffic_data <- read.csv(file='dft_traffic_counts_raw_counts.csv')
+traffic_day_per_year <- read.csv(file='dft_traffic_counts_aadf.csv')
+local_authority_vehicles <- read.csv(file='local_authority_traffic.csv')
+
+# regional stats
+region_traffic_road <- read.csv(file='region_traffic_by_road_type.csv')
+region_traffic_vehicle <- read.csv(file='region_traffic_by_vehicle_type.csv')
+```
