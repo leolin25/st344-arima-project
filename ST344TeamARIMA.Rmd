@@ -11,6 +11,7 @@ urlcolor: blue
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
 ```
 
 # Data Analysis for WCivic
@@ -52,5 +53,5 @@ safety_data <- merge(x=safety_data, y=road_vehicles, by='collision_index')
 # Analysis
 
 ```{r}
-
+ggpl
 ```
