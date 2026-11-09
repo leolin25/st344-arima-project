@@ -34,3 +34,23 @@ local_authority_vehicles <- read.csv(file='local_authority_traffic.csv')
 region_traffic_road <- read.csv(file='region_traffic_by_road_type.csv')
 region_traffic_vehicle <- read.csv(file='region_traffic_by_vehicle_type.csv')
 ```
+
+# Data cleaning and preprocessing
+
+```{r select_data}
+# warwickshire data
+warwickshire_collision <- road_collisions[which(road_collisions$local_authority_highway
+                                          == 'E10000031'), ]
+```
+
+```{r cleaner}
+# join the safety data
+safety_data <- merge(x=road_casualty, y=road_collisions, by='collision_index')
+safety_data <- merge(x=safety_data, y=road_vehicles, by='collision_index')
+```
+
+# Analysis
+
+```{r}
+
+```
