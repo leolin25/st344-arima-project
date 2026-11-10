@@ -10,7 +10,7 @@ urlcolor: blue
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(ggplot2)
 library(dplyr)
 library(tidytext)
@@ -111,19 +111,27 @@ combined_safety_grouped <- combined_safety_data_clean %>%
     TRUE ~ "Other"
   ))
 
-# calculate average collision severity by region and vehicle class
+# calculate average collision severity by region and vehicle class, also CI
 avg_severity_by_region <- combined_safety_grouped %>%
+  filter(!is.na(collision_severity)) %>%
   group_by(region, vehicle_group) %>%
   summarise(
     total_crashes = n(),
-    mean_severity = mean(collision_severity, na.rm = TRUE),
+    mean_severity = mean(collision_severity),
+    sd_severity   = sd(collision_severity),
+    se_severity   = ifelse(total_crashes > 1, sd_severity / sqrt(total_crashes), 0),
+    raw_ci_lower  = mean_severity - 1.96 * se_severity,
+    raw_ci_upper  = mean_severity + 1.96 * se_severity,
     .groups = "drop"
   )
 
-# invert the severity codes so a higher number is more severe (this makes plot more intuitive)
+# invert severity index for more readable plot (4 - raw_val)
+# Note: Since 4 - x flips order, raw_ci_upper becomes severity_ci_lower
 avg_severity_by_region <- avg_severity_by_region %>%
   mutate(
-    severity_index = 4 - mean_severity, # 3 = most severe, 1 = least severe
+    severity_index    = 4 - mean_severity,
+    severity_ci_lower = 4 - raw_ci_upper, # Flipped
+    severity_ci_upper = 4 - raw_ci_lower, # Flipped
     region = factor(region, levels = c("National", "Coventry", "Nottingham", 
                                        "Leicestershire", "Warwickshire", "Worcestershire"))
   )
@@ -137,25 +145,38 @@ ggplot(avg_severity_by_region, aes(x = severity_index,
                    y = reorder_within(vehicle_group, severity_index, region), 
                    yend = reorder_within(vehicle_group, severity_index, region)), 
                color = "gray80") +
-  geom_point(color = "#d62728", size = 3) +
+  # horizontal 95% ci error bars
+  geom_errorbarh(
+    aes(xmin = severity_ci_lower, xmax = severity_ci_upper),
+    height = 0.2,
+    color = "darkred",
+    alpha = 0.7,
+    na.rm = TRUE
+  ) +
+  # mean point marker
+  geom_point(color = "#d62728", size = 3, na.rm = TRUE) +
+  # add text for the upper ci
   geom_text(
-    aes(label = sprintf("%.2f", severity_index)),
+    aes(x = severity_ci_upper, label = sprintf("%.2f", severity_index)),
     hjust = -0.3,
     size = 2.8,
-    color = "black"
+    color = "black",
+    na.rm = TRUE
   ) +
   scale_y_reordered() +
-  scale_x_continuous(limits = c(1, 1.8), expand = c(0, 0)) +
+  # x scale
+  scale_x_continuous(limits = c(1, 1.85), expand = c(0, 0)) +
   coord_cartesian(clip = "off") +
   facet_wrap(~ region, scales = "free_y", ncol = 2) +
-  # add labels
+  # labels
   labs(
     title = "Average Collision Severity by Vehicle Group & Region (2021-2025)",
-    subtitle = "Altered severity code to enhance figure (1 = Slight, 2 = Serious, 3 = Fatal)",
-    x = "Severity Score",
+    subtitle = "Inverted Severity Score (1 = Slight, 2 = Serious, 3 = Fatal) with 95% CIs",
+    caption = "Discontinued vehicle types and personal powered transporter (introduced in 2024) were not included",
+    x = "Severity Score (1-3)",
     y = "Vehicle Group"
   ) +
-  # add theme
+  # theme
   theme_minimal() +
   theme(
     strip.text = element_text(face = "bold", size = 10),
@@ -163,5 +184,8 @@ ggplot(avg_severity_by_region, aes(x = severity_index,
     plot.margin = margin(r = 15, t = 5, b = 5, l = 5)
   )
 ```
+Some 95% confidence intervals do not seem to be visible since they are very close to the mean data point. For example, the national data set has much more data so all 95% confidence intervals are very small.
+
+A common trend across all regions in this figure is that motorcycles are on average involved in the most severe collisions. In addition, cars and taxis are on average involved in the least severe collisions for most regions. A possible reason for these trends are that motorcycles offer much less protection than that of any other vehicle type except pedal and scooter. Another reason this could occur is because most of the time motorcycles drive the fastest of any other vehicle on the road. On the other hand, cars and taxis usually have the most advanced technology and offer more safety features than any other vehicle leading to less serious collisions.
 
 # Phase 2 Analysis
