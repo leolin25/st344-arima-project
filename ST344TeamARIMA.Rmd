@@ -10,15 +10,17 @@ urlcolor: blue
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 library(ggplot2)
+library(dplyr)
+library(tidytext)
 ```
 
-# Data Analysis for WCivic
+# Data Analysis for WCivic (Phase 1)
 
-# Data:
+## Data:
 
-Data obtained from government website. The data will be preprocessed to only use contain data from the last 5 years (2025-2021). This data should be sufficient to view recent trends and patterns that occur
+Data obtained from government website, the safety data used in this project will only include the past 5 years of data (2025-2021). Something important to note with the safety data is that collisions involving more than a single vehicle record the collision multiple times for each vehicle.
 
 ```{r load_data}
 # road safety data
@@ -36,22 +38,130 @@ region_traffic_road <- read.csv(file='region_traffic_by_road_type.csv')
 region_traffic_vehicle <- read.csv(file='region_traffic_by_vehicle_type.csv')
 ```
 
-# Data cleaning and preprocessing
+## Data cleaning and preprocessing
 
-```{r select_data}
-# warwickshire data
-warwickshire_collision <- road_collisions[which(road_collisions$local_authority_highway
-                                          == 'E10000031'), ]
+```{r preprocessing}
+# merge all safety data
+safety_data <- merge(road_casualty, road_collisions, by='collision_index')
+safety_data <- merge(safety_data, road_vehicles, by='collision_index')
 ```
 
-```{r cleaner}
-# join the safety data
-safety_data <- merge(x=road_casualty, y=road_collisions, by='collision_index')
-safety_data <- merge(x=safety_data, y=road_vehicles, by='collision_index')
+## Vehicle compositions effect on local safety outcomes
+
+```{r vehicle_data}
+# convert vehicle ids to labels
+vehicle_lookup <- c(
+  "1"  = "Pedal cycle",
+  "2"  = "Motorcycle 50cc and under",
+  "3"  = "Motorcycle 125cc and under",
+  "4"  = "Motorcycle over 125cc and up to 500cc",
+  "5"  = "Motorcycle over 500cc",
+  "8"  = "Taxi/Private hire car",
+  "9"  = "Car",
+  "10" = "Minibus (8 - 16 seats)",
+  "11" = "Bus or coach (17+ seats)",
+  "16" = "Ridden horse",
+  "17" = "Agricultural vehicle",
+  "18" = "Tram",
+  "19" = "Van / Goods 3.5t or under",
+  "20" = "Goods 3.5t - 7.5t",
+  "21" = "Goods 7.5t and over",
+  "22" = "Mobility scooter",
+  "23" = "Electric motorcycle",
+  "90" = "Other vehicle",
+  "97" = "Motorcycle - unknown cc",
+  "98" = "Goods vehicle - unknown weight",
+  "99" = "Unknown vehicle type"
+)
+
+# get all local authority data
+warwick_data <- safety_data[safety_data$local_authority_highway == "E10000031", ]
+coventry_data <- safety_data[safety_data$local_authority_highway == "E08000026", ]
+nottingham_data <- safety_data[safety_data$local_authority_highway == "E06000018", ]
+worcestershire_data <- safety_data[safety_data$local_authority_highway == "E10000034", ]
+leicestershire_data <- safety_data[safety_data$local_authority_highway == "E10000018", ]
+national_data <- safety_data
+
+# bind the data together into a large df to create facet fig
+combined_safety_data <- bind_rows(
+  warwick_data %>% mutate(region="Warwickshire", level="Two-tier county council system"),
+  coventry_data %>% mutate(region="Coventry", level="Metropolitan Borough Council"),
+  nottingham_data %>% mutate(region="Nottingham", level="Metropolitan Borough Council"),
+  worcestershire_data %>% mutate(region="Worcestershire", level="Two-tier county council system"),
+  leicestershire_data %>% mutate(region="Leicestershire", level="Two-tier county council system"),
+  national_data %>% mutate(region="National", level="National")
+)
+
+# filter out problematic codes (33 is only in 2024+) and add vehicle label
+combined_safety_data_clean <- combined_safety_data %>%
+  filter(as.character(vehicle_type) %in% names(vehicle_lookup)) %>%
+  mutate(vehicle_label = factor(
+    vehicle_lookup[as.character(vehicle_type)],
+    levels = unname(vehicle_lookup)
+  ))
+
+# combines similar vehicle types in vehicle classes
+combined_safety_grouped <- combined_safety_data_clean %>%
+  mutate(vehicle_group = case_when(
+    vehicle_type %in% c(8, 9) ~ "Car & Taxi",
+    vehicle_type %in% c(19, 20, 21, 98) ~ "Goods & Freight",
+    vehicle_type %in% c(1, 22) ~ "Pedal & Scooter",
+    vehicle_type %in% c(2, 3, 4, 5, 23, 97) ~ "Motorcycle",
+    vehicle_type %in% c(10, 11, 18) ~ "Bus & Public Transit",
+    TRUE ~ "Other"
+  ))
+
+# calculate average collision severity by region and vehicle class
+avg_severity_by_region <- combined_safety_grouped %>%
+  group_by(region, vehicle_group) %>%
+  summarise(
+    total_crashes = n(),
+    mean_severity = mean(collision_severity, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# invert the severity codes so a higher number is more severe (this makes plot more intuitive)
+avg_severity_by_region <- avg_severity_by_region %>%
+  mutate(
+    severity_index = 4 - mean_severity, # 3 = most severe, 1 = least severe
+    region = factor(region, levels = c("National", "Coventry", "Nottingham", 
+                                       "Leicestershire", "Warwickshire", "Worcestershire"))
+  )
 ```
 
-# Analysis
-
-```{r}
-ggpl
+```{r vehicle_plot, fig.width=8, fig.height=10}
+# plot of average collision severity by vehicle class and region
+ggplot(avg_severity_by_region, aes(x = severity_index, 
+                                   y = reorder_within(vehicle_group, severity_index, region))) +
+  geom_segment(aes(x = 1, xend = severity_index, 
+                   y = reorder_within(vehicle_group, severity_index, region), 
+                   yend = reorder_within(vehicle_group, severity_index, region)), 
+               color = "gray80") +
+  geom_point(color = "#d62728", size = 3) +
+  geom_text(
+    aes(label = sprintf("%.2f", severity_index)),
+    hjust = -0.3,
+    size = 2.8,
+    color = "black"
+  ) +
+  scale_y_reordered() +
+  scale_x_continuous(limits = c(1, 1.8), expand = c(0, 0)) +
+  coord_cartesian(clip = "off") +
+  facet_wrap(~ region, scales = "free_y", ncol = 2) +
+  # add labels
+  labs(
+    title = "Average Collision Severity by Vehicle Group & Region (2021-2025)",
+    subtitle = "Altered severity code to enhance figure (1 = Slight, 2 = Serious, 3 = Fatal)",
+    x = "Severity Score",
+    y = "Vehicle Group"
+  ) +
+  # add theme
+  theme_minimal() +
+  theme(
+    strip.text = element_text(face = "bold", size = 10),
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(r = 15, t = 5, b = 5, l = 5)
+  )
 ```
+
+# Phase 2 Analysis
