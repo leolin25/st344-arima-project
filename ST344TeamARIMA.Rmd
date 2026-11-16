@@ -14,6 +14,9 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(ggplot2)
 library(dplyr)
 library(tidytext)
+library(kableExtra)
+library(knitr)
+library(tidyr)
 ```
 
 # Data Analysis for WCivic (Phase 1)
@@ -184,8 +187,69 @@ ggplot(avg_severity_by_region, aes(x = severity_index,
     plot.margin = margin(r = 15, t = 5, b = 5, l = 5)
   )
 ```
+
 Some 95% confidence intervals do not seem to be visible since they are very close to the mean data point. For example, the national data set has much more data so all 95% confidence intervals are very small.
 
-A common trend across all regions in this figure is that motorcycles are on average involved in the most severe collisions. In addition, cars and taxis are on average involved in the least severe collisions for most regions. A possible reason for these trends are that motorcycles offer much less protection than that of any other vehicle type except pedal and scooter. Another reason this could occur is because most of the time motorcycles drive the fastest of any other vehicle on the road. On the other hand, cars and taxis usually have the most advanced technology and offer more safety features than any other vehicle leading to less serious collisions.
+A common trend across all regions in this figure is that motorcycles are on average involved in the most severe collisions. In addition, cars and taxis are on average involved in the least severe collisions for most regions. A possible reason for these trends are that motorcycles offer much less protection than that of any other vehicle type except pedal and scooter. Another reason this could occur is because most of the time motorcycles drive the fastest of any other vehicle on the road. On the other hand, cars and taxis usually have the most advanced technology and offer more safety features than any other vehicle, leading to less serious collisions.
+
+```{r table}
+# calculate percentage proportions for each vehicle group
+vehicle_prop_summary <- combined_safety_grouped %>%
+  filter(!is.na(vehicle_group)) %>%
+  mutate(
+    region = factor(region, levels = c(
+      "National", "Coventry", "Nottingham", 
+      "Leicestershire", "Warwickshire", "Worcestershire"
+    )),
+    vehicle_group = factor(vehicle_group, levels = c(
+      "Car & Taxi", "Goods & Freight", "Pedal & Scooter", 
+      "Motorcycle", "Bus & Public Transit", "Other"
+    ))
+  ) %>%
+  group_by(region, vehicle_group) %>%
+  summarise(count = n(), .groups = "drop_last") %>%
+  mutate(pct = (count / sum(count)) * 100) %>%
+  ungroup()
+
+# pivot from format
+vehicle_prop_wide <- vehicle_prop_summary %>%
+  select(region, vehicle_group, pct) %>%
+  pivot_wider(
+    names_from  = vehicle_group,
+    values_from = pct,
+    values_fill = 0 # fills for 0% in case of no crashes
+  ) %>%
+  arrange(region)
+
+# convert to data.frame with region names as row.names
+table_df <- as.data.frame(vehicle_prop_wide %>% select(-region))
+rownames(table_df) <- vehicle_prop_wide$region
+
+knitr::kable(
+  table_df, 
+  caption   = "Percentage of Crashes by Vehicle Group and Region (%)", 
+  digits    = 1, 
+  linesep   = "",
+  col.names = c("Car/Taxi", "Freight", "Pedal/Scooter", "Motorcycle", "Transit", "Other")
+) %>%
+  kableExtra::kable_styling(
+    latex_options = c("striped", "hold_position", "scale_down"),
+    position      = "left"
+  )
+```
+
+The counties (Warwickshire, Leicestershire and Worcestershire) have higher average severity than the cities (Coventry and Nottingham). The cities average about 1.23 severity, the national average severity of crashes is higher at 1.28. However, the average severity of counties is much higher at around 1.36, this suggests that average county roads are more dangerous, this is partially to do with cities having more slower roads (30/40 mph) than counties do but also could be due to vehicle composition. 
+
+The table above shows that counties have much more goods and freight vehicles on the road, about double the amount cities have, since counties also have higher average severity it implies that a larger proportion of goods and freights vehicles means higher average severity, especially on county roads with higher speed limits. The table also shows that counties have less pedals/scooters than cities but more motorcycles on average, pedals/scooters are safe compared to other vehicle groups but motorcycles are shown to be dangerous as seen in the average severity plot. These vehicle composition differences mean that counties are usually not safer than cities.
+
+Coventry has similar average severity than a similar sized city such as Nottingham and much less average severity when compared to the national average or Warwickshire. This is expected as Coventry has much less goods and freights vehicles than . For a city, Coventry has slightly lower than average severity (1.22) than other cities such as Manchester (1.31) or Nottingham (1.23) and much lower average severity than the national average. 
+
+Warwickshire has significantly lower average severity (1.32) compared to other counties (average 1.37). This is because Warwickshire has a lower motorcycle proportion compared to other counties such as Leicestershire and Worcestershire. However, compared to the national average Warwickshire has more severity, this is because of the proportion of goods and freights compared to the national average. 
+
+Overall, this does imply that vehicle composition has some effect of the safety outcomes of a location. Cars and pedal/scooter are vehicle groups that often result in a lower than average severity score when more popular compared to other vehicle groups. On the other hand, motorcycles and goods vehicles result in higher than average severity scores when they are higher than normal.
+
+# Methods
+
+
 
 # Phase 2 Analysis
